@@ -1,0 +1,15 @@
+name: Tomofast-x-mu
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - jupyterlab
+  - numpy
+  - scipy
+  - pandas
+  - xarray
+  # plotting
+  - matplotlib
+  # paleomagnetism Streonet
+  - pmagpy
