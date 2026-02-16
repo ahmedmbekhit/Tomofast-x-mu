@@ -1,6 +1,6 @@
 # Tomofast-x-µ: 3-D Magnetization Reconstruction of Micro-Magnetic Imaging
 The repositry includes the codes and data of (Tomofast-x-µ: 3-D Magnetization Reconstruction of Micro-Magnetic Imaging)
-A. M. Bekhit, V. Ogarko, M. W. Jessel, Y. Liu, K. Evans, Z. Li, U. Kirscher
+A. M. Bekhit, V. Ogarko, M. W. Jessell, Y. Liu, K. Evans, Z. Li, U. Kirscher
 
 
 ## Description
