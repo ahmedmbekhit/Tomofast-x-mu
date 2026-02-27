@@ -11,5 +11,8 @@ dependencies:
   - xarray
   # plotting
   - matplotlib
-  # paleomagnetism Streonet
+  # paleomagnetism stereonet
   - pmagpy
+  - pip
+  - pip:
+    - -e .
