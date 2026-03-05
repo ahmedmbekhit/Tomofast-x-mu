@@ -1,4 +1,4 @@
-<img width="2145" height="1178" alt="worflow_git" src="https://github.com/user-attachments/assets/3111aa8b-d0a6-4cc8-984f-c5a0e922d4f4" />
+<img width="2096" height="1178" alt="worflow_git" src="https://github.com/user-attachments/assets/a78433a2-6933-4170-afc6-97106d96a18a" />
 
 # Tomofast-x-µ: 3-D Magnetization Reconstruction of Micro-Magnetic Imaging
 The repositry includes the codes and data of (Tomofast-x-µ: 3-D Magnetization Reconstruction of Micro-Magnetic Imaging)
