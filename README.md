@@ -24,6 +24,6 @@ This code also could be used as python interface to help Tomofast-x usage.
 
 
 ## Authors and contacts
-Ahmed Bekhit, Vitaliy Ogarko, Mark Jessel, Yebo Liu, Katy Evans, Zheng-Xiang Li, Uwe Kirscher
+Ahmed Mohamed Bekhit, Vitaliy Ogarko, Uwe Kirscher, Yebo Liu, Mark Jessell, Zheng-Xiang Li, Katy Evans
 
 all questions are welcome Ahmed Bekhit: a.hussein4@postgrad.curtin.edu.au or ahmed.m.bekhit@alexu.edu.eg 
