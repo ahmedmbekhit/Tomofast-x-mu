@@ -1,4 +1,4 @@
-<img width="2096" height="1178" alt="worflow_git" src="https://github.com/user-attachments/assets/a78433a2-6933-4170-afc6-97106d96a18a" />
+<img width="2081" height="1178" alt="worflow_git" src="https://github.com/user-attachments/assets/2cda7aec-b83c-43ed-8632-ede5c32508e4" />
 
 # Tomofast-x-µ: 3-D Magnetization Reconstruction of Micro-Magnetic Imaging
 The repositry includes the codes and data of (Bekhit, A. M., Ogarko, V., Kirscher, U., Liu, Y., Jessell, M., Li, Z.-X., & Evans, K. (2026). Tomofast-x-µ: 3-D magnetization reconstruction of micromagnetic imaging (Version 1) [Preprint]. https://doi.org/10.22541/essoar.15001802/v1 )
