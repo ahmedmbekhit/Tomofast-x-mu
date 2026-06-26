@@ -7,7 +7,7 @@ The repositry includes the codes and data of:
 
 
 ## Description
-This  is an open-source Python code based on the [Tomofast-x](https://github.com/TOMOFAST/Tomofast-x) inversion code (Giraud et al., 2021; Ograko et al., 2024). It is subdivided into three major and independent tools:
+This  is an open-source Python code based on the [Tomofast-x](https://github.com/TOMOFAST/Tomofast-x) inversion code (Giraud et al., 2021; Ogarko et al., 2024). It is subdivided into three major and independent tools:
 1.	Three-dimensional micromagnetic modelling: perform full 3-D magnetic vector inversion to recover a full 3D image of the QDM scan.
 2.	Magnetic source locations detection: run a series of fast micro-scale inversions within the grain-discretized 3D volume to detect the magnetic source's true locations.
 3.	Paleomagnetic information delineation: fit the micro-mag data at the locations of detected magnetic sources to recover magnetization vectors, then forward-calculate magnetization direction (declination and inclination) and amplitude (intensity).
