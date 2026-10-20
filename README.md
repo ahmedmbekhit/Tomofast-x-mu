@@ -49,7 +49,6 @@ Data handling and numerical calculations used NumPy (Harris et al., 2020), SciPy
    - `d`: cell size in µm.
    - `PRINT_LIMIT` and `PLOT_LIMIT`: how many lines and figures to show per step, to keep the output short (`0` shows none, `None` shows everything; files are always saved).
 3. Run the cells from top to bottom. The notebook has short calls, and the functions are in `tomofastx_mu.py`. Cell headers (`### … ###`) match between the notebook and the `.py` so you can find the code behind each step.
-4. The anomaly-detection cell has `merge_close`: `True` joins nearby anomalies into one window, `False` keeps them separate.
 
 The code can also be used as a Python interface to simplify running Tomofast-x.
 
