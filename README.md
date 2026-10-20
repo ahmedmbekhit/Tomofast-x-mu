@@ -15,9 +15,9 @@ Tomofast-x-µ is an open-source Python interface built on the [Tomofast-x](https
 
 | Step | What it does | Tool |
 |------|--------------|------|
-| 1. Data acquisition | Read the QDM remanent field (Bx, By, Bz) and convert it to Tomofast-x input | Data preparation |
+| 1. Data acquisition | Read the QDM remanent field (Bx, By, Bz) or (Bz only) and convert it to Tomofast-x input | Data preparation |
 | 2. Anomaly detection and windowing | Threshold T = α·σ(Bz) applied to Bz; the anomalies are cut into spatial windows (blobs) | Data preparation |
-| 3. 3-D vector magnetization inversion | Multi-cell inversion of Bx, By, Bz for each blob (Tomofast-x) | Tool 1 |
+| 3. 3-D vector magnetization inversion | Multi-cell inversion of Bx, By, Bz or Bz only for each blob (Tomofast-x) | Tool 1 |
 | 4. Extracting magnetic volumes | Threshold τ on the model gives the grains (m^f, declination, inclination) | Tool 1 |
 | 5. Locating equivalent dipole centres | Single-cell steepest-descent search for the dipole position (r_e) | Tool 2 |
 | 6. Global multi-dipole inversion | Joint N-cell inversion for the moment, declination and inclination of all dipoles (m^p) | Tool 3 |
