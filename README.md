@@ -57,6 +57,7 @@ The code can also be used as a Python interface to simplify running Tomofast-x.
 ```
 Tomofast-x-mu/
 ├── README.md
+├── environment.yml
 ├── Tomofast-x-mu_v1.1.ipynb     # current workflow notebook (short calls)
 ├── tomofastx_mu.py              # all functions, same order and headers as the notebook
 ├── Code_Versions/               # all earlier versions of the code
