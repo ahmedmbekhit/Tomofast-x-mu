@@ -31,9 +31,11 @@ Step 5 can also start from the maximum-magnetization cell of step 4 instead of t
 ## Installation
 
 1. Install Tomofast-x: [Tomofast-x install](https://github.com/TOMOFAST/Tomofast-manual/blob/main/install.md). The user manual is here: [Tomofast-x manual](https://github.com/TOMOFAST/Tomofast-manual).
-2. Install the Python packages (see Dependencies):
+2. Create the Python environment from `environment.yml` in this repository:
 ```
-   pip install numpy scipy pandas xarray matplotlib pmagpy
+conda env create -f environment.yml
+conda activate Tomofast-x-mu
+jupyter lab
 ```
 3. Windows users run Tomofast-x through WSL. Linux users run it natively.
 
