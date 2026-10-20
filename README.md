@@ -24,10 +24,6 @@ Tomofast-x-µ is an open-source Python interface built on the [Tomofast-x](https
 
 Step 5 can also start from the maximum-magnetization cell of step 4 instead of the anomaly centres (`start_mode="maxs"`).
 
-1. **Tool 1, 3-D micromagnetic modelling (steps 3-4):** a full 3-D magnetic vector inversion of each window, then grain extraction.
-2. **Tool 2, magnetic source location (step 5):** fast single-cell inversions inside the grain volume find the true location of each source.
-3. **Tool 3, paleomagnetic information (step 6):** a joint multi-dipole fit at the detected locations recovers the magnetization vectors, from which the declination, inclination and intensity are calculated. Results can be compared with bulk (e.g. SQUID) measurements.
-
 ## Installation
 
 1. Install Tomofast-x: [Tomofast-x install](https://github.com/TOMOFAST/Tomofast-manual/blob/main/install.md). The user manual is here: [Tomofast-x manual](https://github.com/TOMOFAST/Tomofast-manual).
