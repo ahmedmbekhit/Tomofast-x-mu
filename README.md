@@ -20,7 +20,7 @@ Tomofast-x-µ is an open-source Python interface built on the [Tomofast-x](https
 | 2. Anomaly detection and windowing | Threshold T = α·σ(Bz) applied to Bz; the anomalies are cut into spatial windows (blobs) | Data preparation |
 | 3. 3-D vector magnetization inversion | Multi-cell inversion of Bx, By, Bz or Bz only for each blob (Tomofast-x) | Tool 1 |
 | 4. Extracting magnetic volumes | Threshold τ on the model gives the grains (m^f, declination, inclination) | Tool 1 |
-| 5. Locating equivalent dipole centres | Single-cell steepest-descent search for the dipole position (r_e) | Tool 2 |
+| 5. Locating equivalent dipole centres | Single-cell hill-climbing search for the dipole position (r_e) | Tool 2 |
 | 6. Global multi-dipole inversion | Joint N-cell inversion for the moment, declination and inclination of all dipoles (m^p) | Tool 3 |
 
 Step 5 can also start from the maximum-magnetization cell of step 4 instead of the anomaly centres (`start_mode="maxs"`).
@@ -59,9 +59,14 @@ Tomofast-x-mu/
 ├── environment.yml
 ├── Tomofast-x-mu_v1.1.ipynb     # current workflow notebook (short calls)
 ├── tomofastx_mu.py              # all functions, same order and headers as the notebook
-├── Code_Versions/               # all earlier versions of the code
-├── Natural_Applications/        # natural sample application
-└── Synthetic_Applications/      # synthetic data application
+├── 3.1_Isolated_Dipoles/        # forward and inversion codes
+├── 3.2_Interfering_Dipoles/     # forward and inversion codes
+├── 3.3_MERRILL_Grains/          # forward and inversion codes
+├── 3.4_High_Stress/             # forward and inversion codes
+├── 4_Natural_Sample/            # ODMR to B111 maps, QDM processing (Bx, By, Bz, upward continuation, background removal), and inversion codes
+└── Archive/
+    ├── Code_Versions/           # all earlier versions of the code
+    └── Preprint_v1_Examples/    # examples of the first preprint version
 ```
 
 ## Authors and contacts
