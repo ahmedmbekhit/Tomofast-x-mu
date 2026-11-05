@@ -6,7 +6,8 @@ This repository contains the code and data of:
 2. Zenodo archive: Bekhit, A., Ogarko, V., Kirscher, U., Liu, Y., Jessell, M., Li, Z.-X., & Evans, K. (2026). *Supplementary of "Tomofast-x-µ: 3-D Magnetization Reconstruction of Micromagnetic Imaging"* [Data set]. Zenodo. https://doi.org/10.5281/zenodo.19603350
 
 
-<img width="734" height="292" alt="GITHUB_WORKFLOW" src="https://github.com/user-attachments/assets/18489dde-10cb-4f13-adca-b467d3da6521" />
+<img width="1147" height="457" alt="GITHUB_WORKFLOW" src="https://github.com/user-attachments/assets/8cfcaa91-f0d5-4569-8071-c0962c89d3a8" />
+
 
 
 ## Description
