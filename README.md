@@ -69,6 +69,10 @@ Tomofast-x-mu/
     └── Preprint_v1_Examples/    # examples of the first preprint version
 ```
 
+## License
+
+Code: MIT licence (`LICENSE`). Data and figures: CC BY 4.0 (`LICENSE-DATA`).
+
 ## Authors and contacts
 
 Ahmed Mohamed Bekhit, Vitaliy Ogarko, Uwe Kirscher, Yebo Liu, Mark Jessell, Zheng-Xiang Li, Katy Evans
