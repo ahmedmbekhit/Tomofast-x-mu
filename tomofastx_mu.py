@@ -438,9 +438,9 @@ def show_bz_led_overlay(cfg):
 
     X, Y = np.meshgrid(x, y)
 
-    # clip outliers
-    bz_min = np.percentile(Bz, 2)
-    bz_max = np.percentile(Bz, 98)
+    # clip outliers, symmetric zero is the centre colour
+    v = np.percentile(np.abs(Bz), 98)
+    bz_min, bz_max = -v, v
 
     plt.style.use("seaborn-v0_8-white")
 
@@ -4573,7 +4573,8 @@ def compare_mp_mf(cfg,
                   irm_inc=0.5,             # inclination (deg)
                   irm_moment_am2=1.94e-5,  # net moment of the bulk sample (A*m^2)
                   mf_threshold=0.91,       # fixed threshold used for the m^f comparison
-                  bz_vmax=4000):           # colour limit of the Bz maps (nT)
+                  bz_vmax=4000,            # colour limit of the Bz maps (nT)
+                  use_largest=False):      # True = largest grain per blob, False = all grains
     """Combined figure of the m^p (global multi-dipole fit) and m^f (3D inversion) results, against the bulk IRM."""
     base_dir = cfg.base_dir
 
@@ -4644,7 +4645,11 @@ def compare_mp_mf(cfg,
         if not os.path.isdir(grains_folder):
             continue
         for fname in sorted(os.listdir(grains_folder)):
-            if not fname.startswith("grain_dec_inc_") or "largest" in fname:
+            if not fname.startswith("grain_dec_inc_"):
+                continue
+            if fname.endswith("_ALL.csv"):
+                continue
+            if ("largest" in fname) != use_largest:
                 continue
             df = pd.read_csv(os.path.join(grains_folder, fname))
             if df.empty:
