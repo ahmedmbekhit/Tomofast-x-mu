@@ -767,12 +767,13 @@ def detect_anomalies(cfg,
     # seed single-cell mesh rows
     seed_meshrow_path = os.path.join(base_dir, "4-3D_Inversion_Filtered", "blob_seed_meshrow.txt")
 
-    # write headers (overwrite each run)
-    with open(windows_path, "w") as fw:
-        fw.write("# blob_id x_min x_max y_min y_max\n")
+    # write headers (overwrite each run), not when the ready files are used (they may be in this very folder)
+    if not windows_from:
+        with open(windows_path, "w") as fw:
+            fw.write("# blob_id x_min x_max y_min y_max\n")
 
-    with open(summary_path, "w") as fs:
-        fs.write("# blob_id nx ny nz ndata\n")
+        with open(summary_path, "w") as fs:
+            fs.write("# blob_id nx ny nz ndata\n")
 
     # 1) read obs
     with open(obs_path, "r") as f:
@@ -783,8 +784,9 @@ def detect_anomalies(cfg,
     y = data[:, 1]
 
     if windows_from:      # skip detection, use the ready files
-        for fn in ("blob_windows.txt", "blob_window_summary.txt", "blob_seed_meshrow.txt"):   # names
-            shutil.copy(os.path.join(windows_from, fn), os.path.dirname(windows_path))
+        if not os.path.samefile(windows_from, os.path.dirname(windows_path)):   # same folder = the files are already here
+            for fn in ("blob_windows.txt", "blob_window_summary.txt", "blob_seed_meshrow.txt"):   # names
+                shutil.copy(os.path.join(windows_from, fn), os.path.dirname(windows_path))
         plt.figure(figsize=(8, 6), dpi=300)      # overview plot from THIS step's Bz
         plt.imshow(data[:, 5 if data.shape[1] >= 6 else 3].reshape(len(np.unique(y)), len(np.unique(x))), origin="lower",
                    extent=[x.min(), x.max(), y.min(), y.max()], cmap="seismic", vmax=plot_vlim, vmin=-plot_vlim)
@@ -2729,7 +2731,8 @@ def run_steepest_descent(cfg,
                          start_mode="seed",   # "seed" = anomaly centers, "maxs" = max cells of the 3D inversion
                          thr=0.9,             # threshold of the max cells (only used when start_mode="maxs")
                          max_steps=200,
-                         n_workers=None):     # blobs run at the same time (None = NPROC)
+                         n_workers=None,      # blobs run at the same time (None = NPROC)
+                         locations_from=None):   # None = search | best_per_blob_steepest.txt of an earlier step (e.g. NRM) = skip the search
     """
     Steepest-descent search for each blob: finds the single cell position with the
     minimum Tomofast-x data cost. Blobs already in best_per_blob_steepest.txt are
@@ -2797,6 +2800,16 @@ def run_steepest_descent(cfg,
 
             seed_map[blob_id] = (xmin0, xmax0, ymin0, ymax0, zmin0, zmax0)
 
+    # cells of an earlier step (e.g. NRM): blob -> (grain id, bounds). Read now, before this step's own file is rewritten
+    fixed_map = {}
+    if locations_from:
+        if os.path.isdir(locations_from):      # a folder is fine too: the file inside it
+            locations_from = os.path.join(locations_from, "best_per_blob_steepest.txt")
+        for ln in open(locations_from):
+            c = ln.split()
+            if c and not ln.startswith("#") and not math.isnan(float(c[3])):
+                fixed_map[c[0]] = (int(c[1].split("_")[1]), tuple(float(v) for v in c[3:9]))
+
     t0 = time.time()
 
     run_quiet(cfg, f"mkdir -p '{home}/{run_id}/data' '{home}/{run_id}/output' '{home}/{run_id}/parfile'")
@@ -2805,7 +2818,7 @@ def run_steepest_descent(cfg,
     summary_path = os.path.join(out_dir, "best_per_blob_steepest.txt")
     completed_blobs = set()
 
-    if os.path.exists(summary_path):
+    if os.path.exists(summary_path) and not locations_from:     # with locations_from every blob is fitted again, new file
         with open(summary_path) as f:
             for ln in f:
                 if ln.startswith("#") or not ln.strip():
@@ -2823,6 +2836,9 @@ def run_steepest_descent(cfg,
     def _run_one_blob(blob):
         if blob in completed_blobs:
             out.say(f"Skipping {blob} (already completed, found in checkpoint)")
+            return None
+        if locations_from and blob not in fixed_map:
+            out.say(f"Skipping {blob} (not in the locations file)")
             return None
 
         out.say("\n===================================================")
@@ -2859,6 +2875,10 @@ def run_steepest_descent(cfg,
         best_center = (cx, cy, cz)
         best_bounds = (xmin0, xmax0, ymin0, ymax0, zmin0, zmax0)
         best_meshname = "meshgrid_seed.txt"
+        if locations_from:      # cell of the earlier step: no search, only the final fit below
+            grain_id, best_bounds = fixed_map[blob]
+            best_center = tuple((best_bounds[i] + best_bounds[i + 1]) / 2 for i in (0, 2, 4))
+            best_cost, best_meshname = 0.0, "meshgrid_fixed.txt"
 
         # 2) copy parfile + obs to the Tomofast machine (filename must match Parfile)
         obs_win = os.path.join(obs_dir, f"Blob_{blob_id:03d}_RECT.obs")
@@ -2874,7 +2894,7 @@ def run_steepest_descent(cfg,
             f.write("# step meshfile cx cy cz xmin xmax ymin ymax zmin zmax cost\n")
 
         # 3) steepest descent
-        for step in range(1, MAX_STEPS + 1):
+        for step in range(1, (0 if locations_from else MAX_STEPS) + 1):
             move_best_cost = float("inf")
             move_best_center = None
             move_best_bounds = None
@@ -2956,6 +2976,8 @@ def run_steepest_descent(cfg,
 
             run_quiet(cfg, f"cp '{tmp_mesh_wsl}' '{meshgrid_target_wsl}'")
             rc, cost, text = run_quiet(cfg, f"cd '{home}' && ./tomofastx -p ./{run_id}/parfile/{par_name}")
+            if locations_from and rc == 0 and cost is not None:
+                best_cost = cost                  # data cost of the fit at the given cell
 
             if rc != 0:
                 out.say(f"   WARNING: re-fit run failed for {blob}, output not saved")
