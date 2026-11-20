@@ -723,7 +723,8 @@ def detect_anomalies(cfg,
                      max_blob_cells=100000,     # ignore huge blobs
                      nz_fixed=10,               # nz for Tomofast (same for all blobs)
                      merge_close=True,          # True = nearby anomalies join into one blob, False = keep them separate
-                     plot_vlim=20000):          # colour limit of the overview plot (nT)
+                     plot_vlim=20000,          # colour limit of the overview plot (nT)
+                     windows_from=None):        # None = detect | folder of an earlier run = skip detection, use its files
     base_dir = cfg.base_dir
     d = cfg.d
     out = Out()
@@ -780,6 +781,21 @@ def detect_anomalies(cfg,
     data = np.loadtxt(obs_path, skiprows=1)
     x = data[:, 0]
     y = data[:, 1]
+
+    if windows_from:      # skip detection, use the ready files
+        for fn in ("blob_windows.txt", "blob_window_summary.txt", "blob_seed_meshrow.txt"):   # names
+            shutil.copy(os.path.join(windows_from, fn), os.path.dirname(windows_path))
+        plt.figure(figsize=(8, 6), dpi=300)      # overview plot from THIS step's Bz
+        plt.imshow(data[:, 5 if data.shape[1] >= 6 else 3].reshape(len(np.unique(y)), len(np.unique(x))), origin="lower",
+                   extent=[x.min(), x.max(), y.min(), y.max()], cmap="seismic", vmax=plot_vlim, vmin=-plot_vlim)
+        for bid, xa, xb, ya, yb in np.loadtxt(windows_path, ndmin=2)[:, :5]:
+            sel = (x >= xa - 1e-6) & (x <= xb + 1e-6) & (y >= ya - 1e-6) & (y <= yb + 1e-6)
+            write_obs(os.path.join(out_obs_dir, f"Blob_{int(bid):03d}_RECT.obs"), header_line, data[sel, :])
+            plt.gca().add_patch(patches.Rectangle((xa, ya), xb - xa, yb - ya, edgecolor="black", facecolor="none", linewidth=1.5))
+            plt.text(xa, yb, str(int(bid)), fontsize=8)
+        plt.savefig(os.path.join(os.path.dirname(windows_path), "BZ_Blobs.png"), dpi=300, bbox_inches="tight")
+        out.show()
+        return
 
     # 4 cols = x,y,z,bz | 6 cols = x,y,z,bx,by,bz
     ncols = data.shape[1]
