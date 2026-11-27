@@ -879,14 +879,17 @@ def detect_anomalies(cfg,
             if sizes[i-1] > max_blob_cells:
                 continue
 
-            # skip noisy blobs (by stable global id, not per-pass label i)
-            if (kept + 1) in skip_blobs:
+            # skip noisy blobs / blobs not chosen, but still lock their region
+            # so lower levels do not re-detect them and shift the numbering
+            if (kept + 1) in skip_blobs or (choose_blobs and (kept + 1) not in choose_blobs):
                 kept += 1
-                continue
-
-            # if choose_blobs is set, only keep blobs explicitly listed there
-            if choose_blobs and (kept + 1) not in choose_blobs:
-                kept += 1
+                ys, xs = sl
+                r0e = max(0, ys.start - pad_y); r1e = min(ny - 1, ys.stop - 1 + pad_y)
+                c0e = max(0, xs.start - pad_x); c1e = min(nx - 1, xs.stop - 1 + pad_x)
+                lmx = max(min_lock_margin, int(round(lock_margin_factor * (c1e - c0e + 1))))
+                lmy = max(min_lock_margin, int(round(lock_margin_factor * (r1e - r0e + 1))))
+                picked_mask[max(0, r0e - lmy):min(ny - 1, r1e + lmy) + 1,
+                            max(0, c0e - lmx):min(nx - 1, c1e + lmx) + 1] = True
                 continue
 
             ys, xs = sl
@@ -1226,7 +1229,7 @@ def calc_ideal_compression_rate(nx, ny, nz, c_e=COMPRESSION_TARGET_ERROR, wavele
     else:
         a, k, b = 35.07, -0.872, -0.884
     ideal_cr = a * (c_e ** k) * (n_model ** b)
-    return min(ideal_cr * 4.0, 1.0)  # 2x safety margin, capped at 1.0 (no compression)
+    return min(ideal_cr * 2.0, 1.0)  # 2x safety margin, capped at 1.0 (no compression)
 
 
 # Parfile template for the full 3D inversion of each blob (only the placeholders change)
@@ -1288,7 +1291,7 @@ INVERSION parameters
 ==================================================================================
 inversion.nMajorIterations              = 3
 inversion.nMinorIterations              = 100
-inversion.targetMisfit = 100 #RMS_nT target misfit (measurement error) to avoid overfitting
+inversion.targetMisfit = {target_rms} #RMS_nT target misfit (measurement error) to avoid overfitting
 
 ==================================================================================
 MODEL DAMPING (m - m_prior)
@@ -1303,10 +1306,11 @@ inversion.joint.magn.problemWeight      = 1.00000000
 """
 
 
-def create_inversion_parfiles(cfg, n_data_components=3, z0=10.0):
+def create_inversion_parfiles(cfg, n_data_components=3, z0=10.0, target_rms=100):
     """
     n_data_components: 3 if using Bx, By, Bz, or 1 if using Bz only
     z0: depth weighting Z0, the instrument height (matching the Z column in the data)
+    target_rms: target RMS error for the inversion
     """
     base_dir = cfg.base_dir
     out = Out()
@@ -1340,7 +1344,8 @@ def create_inversion_parfiles(cfg, n_data_components=3, z0=10.0):
             ndata=ndata,
             compression_rate=compression_rate,
             ncomp=n_data_components,
-            z0=z0
+            z0=z0,
+            target_rms=target_rms
         )
 
         out_path = os.path.join(par_out_dir, f"Parfile_QDM_Inversion_Blob_{blob_id:03d}.txt")
@@ -1760,7 +1765,7 @@ def extract_grains(cfg, thresholds=None, keep_largest=False):
     MESH_ROOT = os.path.join(cfg.base_dir, "4-3D_Inversion_Filtered", "Blob_Meshgrids")
 
     if thresholds is None:
-        thresholds = np.arange(0.1, 1.0, 0.1)  # 0.1..0.9
+        thresholds = np.r_[0.01, np.arange(0.1, 1.0, 0.1)]  # 0.01, 0.1..0.9
 
     # 26-connectivity in 3D
     structure = generate_binary_structure(3, 3)
@@ -1784,7 +1789,7 @@ def extract_grains(cfg, thresholds=None, keep_largest=False):
         blob_largest_summary = []
 
         for threshold_per in thresholds:
-            thr_str = f"{threshold_per:.1f}"
+            thr_str = f"{threshold_per:.2f}"
             out.say(f"   -> threshold = {thr_str}")
 
             threshold = threshold_per * m["mag"].max()
@@ -1923,7 +1928,7 @@ def plot_grains_3d(cfg, thresholds=None):
     MESH_ROOT = os.path.join(cfg.base_dir, "4-3D_Inversion_Filtered", "Blob_Meshgrids")
 
     if thresholds is None:
-        thresholds = np.arange(0.1, 1.0, 0.1)  # 0.1 .. 0.9
+        thresholds = np.r_[0.01, np.arange(0.1, 1.0, 0.1)]
     structure = generate_binary_structure(3, 3)  # 26-connectivity
 
     blob_dirs = list_blobs(BLOB_ROOT)
@@ -1983,7 +1988,7 @@ def plot_grains_3d(cfg, thresholds=None):
         os.makedirs(out_folder, exist_ok=True)
 
         for threshold_per in thresholds:
-            out.say(f"   -> threshold = {threshold_per:.1f}")
+            out.say(f"   -> threshold = {threshold_per:.2f}")
 
             threshold = threshold_per * mag.max()
             mask = mag > threshold
@@ -1996,8 +2001,8 @@ def plot_grains_3d(cfg, thresholds=None):
                 out.say("      (no points above threshold) skip plot")
                 continue
 
-            out_fig = os.path.join(out_folder, f"{blob}_grains_3D_{threshold_per:.1f}.png")
-            title = f"{blob} — 3D Grains (thr={threshold_per:.1f}, n={num_grains})"
+            out_fig = os.path.join(out_folder, f"{blob}_grains_3D_{threshold_per:.2f}.png")
+            title = f"{blob} — 3D Grains (thr={threshold_per:.2f}, n={num_grains})"
             plot_3D_grains_voxels(labeled_grains_3d, dzyx, out_fig, title, out)
 
             out.say(f"      saved: {out_fig}")
@@ -2024,7 +2029,7 @@ def grain_statistics(cfg, thresholds=None, keep_largest=False):
     V = dx * dy * dz
 
     if thresholds is None:
-        thresholds = np.arange(0.01, 1.0, 0.1)
+        thresholds = np.r_[0.01, np.arange(0.1, 1.0, 0.1)]
 
     blob_dirs = list_blobs(BLOB_ROOT)
     out.say("Found blobs:", blob_dirs, always=True)
@@ -2048,7 +2053,7 @@ def grain_statistics(cfg, thresholds=None, keep_largest=False):
         blob_largest_rows = []
 
         for threshold_per in thresholds:
-            thr_str = f"{threshold_per:.1f}"
+            thr_str = f"{threshold_per:.2f}"
             out.say(f"\n  === threshold {thr_str} ===")
 
             csv_path = os.path.join(grains_folder, f"grain_labels_{thr_str}.csv")
@@ -2246,7 +2251,7 @@ def plot_dec_inc_moment(cfg, thresholds=None):
     out = Out()
     BLOB_ROOT = os.path.join(cfg.base_dir, "4-3D_Inversion_Filtered", "Tomofast_Output_Blobs")
     if thresholds is None:
-        thresholds = np.arange(0.01, 1.0, 0.1)
+        thresholds = np.r_[0.01, np.arange(0.1, 1.0, 0.1)]
 
     blob_dirs = list_blobs(BLOB_ROOT)
 
@@ -2258,7 +2263,7 @@ def plot_dec_inc_moment(cfg, thresholds=None):
             continue
 
         for threshold_per in thresholds:
-            csv_path = os.path.join(grains_folder, f"grain_dec_inc_{threshold_per:.1f}.csv")
+            csv_path = os.path.join(grains_folder, f"grain_dec_inc_{threshold_per:.2f}.csv")
             if not os.path.exists(csv_path):
                 continue
 
@@ -2327,10 +2332,10 @@ def extract_max_cells(cfg, thresholds=None, target_grain_ids=None, tol=1e-6):
         z_c = (mesh[:, 4] + mesh[:, 5]) / 2  # positive down in Tomofast
 
         for threshold_per in thresholds:
-            out.say(f"\n  === Threshold {threshold_per:.1f} ===")
+            out.say(f"\n  === Threshold {threshold_per:.2f} ===")
 
             # largest grain per blob (filtered); for all grains use grain_labels_{thr}.csv
-            csv_path = os.path.join(grains_folder, f"grain_labels_largest_{threshold_per:.1f}.csv")
+            csv_path = os.path.join(grains_folder, f"grain_labels_largest_{threshold_per:.2f}.csv")
             if not os.path.isfile(csv_path):
                 out.say("   CSV not found:", csv_path)
                 continue
@@ -2379,7 +2384,7 @@ def extract_max_cells(cfg, thresholds=None, target_grain_ids=None, tol=1e-6):
             if len(rows_out) > 0:
                 rows_out = np.array(rows_out)
 
-                out_txt = os.path.join(meshs_folder, f"grain_max_meshrow_{threshold_per:.1f}.txt")
+                out_txt = os.path.join(meshs_folder, f"grain_max_meshrow_{threshold_per:.2f}.txt")
 
                 with open(out_txt, "w") as f:
                     f.write(f"{rows_out.shape[0]}\n")
@@ -2403,7 +2408,7 @@ def combine_max_cells(cfg, thr=0.9):
     out = Out()
     BLOB_ROOT = os.path.join(cfg.base_dir, "4-3D_Inversion_Filtered", "Tomofast_Output_Blobs")
 
-    fname = f"grain_max_meshrow_{thr:.1f}.txt"
+    fname = f"grain_max_meshrow_{thr:.2f}.txt"
 
     all_rows = []
 
@@ -2442,13 +2447,13 @@ def combine_max_cells(cfg, thr=0.9):
 
         df = pd.DataFrame(all_rows, columns=cols)
 
-        out_csv = os.path.join(BLOB_ROOT, f"ALL_BLOBS_grain_max_meshrow_{thr:.1f}.csv")
+        out_csv = os.path.join(BLOB_ROOT, f"ALL_BLOBS_grain_max_meshrow_{thr:.2f}.csv")
         df.to_csv(out_csv, index=False)
 
         print("\nSaved combined csv:", out_csv)
 
         # combined txt (Tomofast-style: first line = total)
-        out_txt = os.path.join(BLOB_ROOT, f"ALL_BLOBS_grain_max_meshrow_{thr:.1f}.txt")
+        out_txt = os.path.join(BLOB_ROOT, f"ALL_BLOBS_grain_max_meshrow_{thr:.2f}.txt")
 
         with open(out_txt, "w") as f:
             f.write(f"{len(df)}\n")
@@ -2484,7 +2489,7 @@ def plot_max_cells(cfg, thr=0.9):
 
     # 2. max cells (combined file)
     max_cells_path = os.path.join(base_dir, "4-3D_Inversion_Filtered", "Tomofast_Output_Blobs",
-                                  f"ALL_BLOBS_grain_max_meshrow_{thr:.1f}.csv")
+                                  f"ALL_BLOBS_grain_max_meshrow_{thr:.2f}.csv")
     df = pd.read_csv(max_cells_path)
 
     # cell centres
@@ -2508,7 +2513,7 @@ def plot_max_cells(cfg, thr=0.9):
 
     # 5. overlay max cells
     ax.scatter(mx, my, s=55, c="lime", edgecolors="black", linewidths=0.6, marker="s",
-               label=f"Max cells (THR={thr:.1f})", zorder=3)
+               label=f"Max cells (THR={thr:.2f})", zorder=3)
 
     # 6. labels and styling
     ax.set_xlabel("X coordinate (µm)", fontsize=12)
@@ -2523,7 +2528,7 @@ def plot_max_cells(cfg, thr=0.9):
 
     # 7. save figure
     out_png = os.path.join(base_dir, "4-3D_Inversion_Filtered", "Tomofast_Output_Blobs",
-                           f"BZ_max_cells_THR_{thr:.1f}.png")
+                           f"BZ_max_cells_THR_{thr:.2f}.png")
 
     plt.savefig(out_png, dpi=300, bbox_inches="tight")
     out.show()
@@ -2545,7 +2550,7 @@ def plot_max_cells_depth(cfg, thr=0.9):
 
     # 2. max cells
     max_cells_path = os.path.join(base_dir, "4-3D_Inversion_Filtered", "Tomofast_Output_Blobs",
-                                  f"ALL_BLOBS_grain_max_meshrow_{thr:.1f}.csv")
+                                  f"ALL_BLOBS_grain_max_meshrow_{thr:.2f}.csv")
     df = pd.read_csv(max_cells_path)
 
     mx = 0.5 * (df["X1"].values + df["X2"].values)
@@ -2579,7 +2584,7 @@ def plot_max_cells_depth(cfg, thr=0.9):
     ax.set_ylim(y.min(), y.max())
 
     out_png = os.path.join(base_dir, "4-3D_Inversion_Filtered", "Tomofast_Output_Blobs",
-                           f"BZ_max_cells_THR_{thr:.1f}.png")
+                           f"BZ_max_cells_THR_{thr:.2f}.png")
 
     plt.savefig(out_png, dpi=300, bbox_inches="tight")
     out.show()
@@ -2648,7 +2653,7 @@ INVERSION parameters
 ==================================================================================
 inversion.nMajorIterations              = 3
 inversion.nMinorIterations              = 100
-inversion.targetMisfit = 100 #RMS_nT target misfit (measurement error) to avoid overfitting
+inversion.targetMisfit = {target_rms} #RMS_nT target misfit (measurement error) to avoid overfitting
 
 
 ==================================================================================
@@ -2664,10 +2669,11 @@ inversion.joint.magn.problemWeight      = 1.00000000
 """
 
 
-def create_single_cell_parfiles(cfg, n_data_components=3, z0=10.0):
+def create_single_cell_parfiles(cfg, n_data_components=3, z0=10.0, target_rms=100):
     """
     n_data_components: 3 if using Bx, By, Bz, or 1 if using Bz only
     z0: depth weighting Z0, the instrument height (matching the Z column in the data)
+    target_rms: target RMS error for the inversion
     """
     base_dir = cfg.base_dir
     out = Out()
@@ -2698,7 +2704,8 @@ def create_single_cell_parfiles(cfg, n_data_components=3, z0=10.0):
             nz=nz,
             ndata=ndata,
             ncomp=n_data_components,
-            z0=z0
+            z0=z0,
+            target_rms=target_rms
         )
 
         out_path = os.path.join(par_out_dir, f"Parfile_QDM_Inversion_Blob_{blob_id:03d}.txt")
@@ -2745,7 +2752,7 @@ def run_steepest_descent(cfg,
 
     START_MODE = start_mode
     MAX_STEPS = max_steps
-    in_name = f"grain_max_meshrow_{thr:.1f}.txt"
+    in_name = f"grain_max_meshrow_{thr:.2f}.txt"
     N_WORKERS = cfg.nproc if n_workers is None else n_workers
 
     # folders
@@ -3346,7 +3353,7 @@ INVERSION parameters
 ==================================================================================
 inversion.nMajorIterations              = 3
 inversion.nMinorIterations              = 100
-inversion.targetMisfit = 100 #RMS_nT target misfit (measurement error) to avoid overfitting
+inversion.targetMisfit = {target_rms} #RMS_nT target misfit (measurement error) to avoid overfitting
 #inversion.modelDamping.normPower        = 1.4d0
 
 ==================================================================================
@@ -3373,11 +3380,12 @@ inversion.admm.magn.weight          = 50.d0
 """
 
 
-def create_dipole_parfile(cfg, n_blobs, n_data_components=3, z0=10.0):
+def create_dipole_parfile(cfg, n_blobs, n_data_components=3, z0=10.0, target_rms=100):
     """
     n_blobs: number of dipoles, from combine_best_meshes()
     n_data_components: 3 if using Bx, By, Bz, or 1 if using Bz only
     z0: depth weighting Z0, the instrument height (matching the Z column in the data)
+    target_rms: target RMS error for the inversion
     """
     base_dir = cfg.base_dir
 
@@ -3388,7 +3396,7 @@ def create_dipole_parfile(cfg, n_blobs, n_data_components=3, z0=10.0):
         ndata_full = int(f.readline().split()[0])
 
     par_text = PAR_TEMPLATE_DIPOLE.format(run_id=cfg.run_id, nblobs=n_blobs, ndata=ndata_full,
-                                          ncomp=n_data_components, z0=z0)
+                                          ncomp=n_data_components, z0=z0, target_rms=target_rms)
 
     print(f"[Sanity check] nblobs = {n_blobs}, ndata = {ndata_full}")
 
@@ -4610,7 +4618,8 @@ def compare_mp_mf(cfg,
                   irm_dec=270,             # bulk IRM measurement (natural sample reference): declination (deg)
                   irm_inc=0.5,             # inclination (deg)
                   irm_moment_am2=1.94e-5,  # net moment of the bulk sample (A*m^2)
-                  mf_threshold=0.91,       # fixed threshold used for the m^f comparison
+                  mf_threshold_moment=0.9,    # threshold used for the m^f moment
+                  mf_threshold_angle=0.01,    # threshold used for the m^f Dec / Incn
                   bz_vmax=4000,            # colour limit of the Bz maps (nT)
                   use_largest=False):      # True = largest grain per blob, False = all grains
     """Combined figure of the m^p (global multi-dipole fit) and m^f (3D inversion) results, against the bulk IRM."""
@@ -4628,7 +4637,8 @@ def compare_mp_mf(cfg,
     IRM_DEC = irm_dec
     IRM_INC = irm_inc
     IRM_MOMENT_AM2 = irm_moment_am2
-    MF_THRESHOLD = mf_threshold
+    MF_THR_MOMENT = mf_threshold_moment
+    MF_THR_ANGLE = mf_threshold_angle
 
     # load m^p data (single combined-grains fit)
     mp_data_dir = os.path.join(base_dir, "4-Source_Detection", "Tomofast_Output", "combined_grains", "data")
@@ -4676,7 +4686,7 @@ def compare_mp_mf(cfg,
     print(f"[m^f] Data cost = {mf_data_cost:.6f}  R2 = {mf_r2:.6f}  RMS = {mf_rms:.6f}")
 
     # m^f recovered grains: only threshold = MF_THRESHOLD, all grains, all blobs
-    mf_rows = []
+    mf_rows, mf_ang_rows = [], []
     all_thresholds_seen = set()
     for blob in blob_dirs:
         grains_folder = os.path.join(BLOB_ROOT, blob, blob, "Grains_detection")
@@ -4694,22 +4704,28 @@ def compare_mp_mf(cfg,
                 continue
             df["Threshold"] = df["Threshold"].round(2)
             all_thresholds_seen.update(df["Threshold"].unique().tolist())
-            df = df[np.isclose(df["Threshold"], MF_THRESHOLD, atol=0.005)]
-            if not df.empty:
-                mf_rows.append(df)
+            df_m = df[np.isclose(df["Threshold"], MF_THR_MOMENT, atol=0.005)]
+            df_a = df[np.isclose(df["Threshold"], MF_THR_ANGLE, atol=0.005)]
+            if not df_m.empty:
+                mf_rows.append(df_m)
+            if not df_a.empty:
+                mf_ang_rows.append(df_a)
 
-    if not mf_rows:
+    if not mf_rows or not mf_ang_rows:
         raise RuntimeError(
-            f"No grain_dec_inc_*.csv rows found at threshold={MF_THRESHOLD}. "
+            f"No grain_dec_inc_*.csv rows at moment threshold={MF_THR_MOMENT} or angle threshold={MF_THR_ANGLE}. "
             f"Thresholds actually present in these files: {sorted(all_thresholds_seen)}"
         )
-    mf_rec_df = pd.concat(mf_rows, ignore_index=True)
+    mf_rec_df = pd.concat(mf_rows, ignore_index=True)          # moment set
     mf_rec_df = mf_rec_df[mf_rec_df["Net_Moment_Amplitude"] > 0].copy()
-    print(f"[m^f] recovered grains at threshold={MF_THRESHOLD}: {len(mf_rec_df)}")
+    mf_ang_df = pd.concat(mf_ang_rows, ignore_index=True)      # angle set
+    mf_ang_df = mf_ang_df[mf_ang_df["Net_Moment_Amplitude"] > 0].copy()
+    print(f"[m^f] grains: {len(mf_rec_df)} at moment threshold={MF_THR_MOMENT}, "
+          f"{len(mf_ang_df)} at angle threshold={MF_THR_ANGLE}")
 
     # Fisher means, medians, and net (vector-summed) moments
     mp_fdec, mp_finc, _, _ = fisher_mean(mp_rec_df["dec"], mp_rec_df["inc"])
-    mf_fdec, mf_finc, _, _ = fisher_mean(mf_rec_df["Dec"], mf_rec_df["Inc"])
+    mf_fdec, mf_finc, _, _ = fisher_mean(mf_ang_df["Dec"], mf_ang_df["Inc"])
 
     log_mp_moment = np.log10(mp_rec_df[mp_moment_col])
     log_mf_moment = np.log10(mf_rec_df["Net_Moment_Amplitude"])
@@ -4782,7 +4798,7 @@ def compare_mp_mf(cfg,
     # row 2: (d) declination, (e) inclination, (f) moment, m^p vs m^f, against the bulk IRM
     dec_bins = np.linspace(0, 360, 41)
     plot_double_hist(
-        axes[1][0], mp_rec_df["dec"], mf_rec_df["Dec"],
+        axes[1][0], mp_rec_df["dec"], mf_ang_df["Dec"],
         dec_bins, "Declination (°)", "d",
         vlines=[
             (IRM_DEC, IRM_LINE_COLOR, "--", f"Bulk IRM Dec={IRM_DEC:.1f}°"),
@@ -4795,7 +4811,7 @@ def compare_mp_mf(cfg,
 
     inc_bins = np.linspace(-90, 90, 41)
     plot_double_hist(
-        axes[1][1], mp_rec_df["inc"], mf_rec_df["Inc"],
+        axes[1][1], mp_rec_df["inc"], mf_ang_df["Inc"],
         inc_bins, "Inclination (°)", "e",
         vlines=[
             (IRM_INC, IRM_LINE_COLOR, "--", f"Bulk IRM Inc={IRM_INC:.1f}°"),
@@ -4825,10 +4841,10 @@ def compare_mp_mf(cfg,
     )
 
     # row 3: stereonets coloured by moment (one shared colour scale), under the dec / inc histograms
-    all_moment = np.concatenate([mp_rec_df[mp_moment_col].to_numpy(), mf_rec_df["Net_Moment_Amplitude"].to_numpy()])
+    all_moment = np.concatenate([mp_rec_df[mp_moment_col].to_numpy(), mf_ang_df["Net_Moment_Amplitude"].to_numpy()])
     norm_m = LogNorm(vmin=all_moment.min(), vmax=all_moment.max())
     cmap_m = plt.cm.jet
-    plot_stereonet_panel(axes[2][0], mf_rec_df["Dec"], mf_rec_df["Inc"], mf_rec_df["Net_Moment_Amplitude"],
+    plot_stereonet_panel(axes[2][0], mf_ang_df["Dec"], mf_ang_df["Inc"], mf_ang_df["Net_Moment_Amplitude"],
                          norm_m, cmap_m, mf_fdec, mf_finc, IRM_DEC, IRM_INC, "$m^f$", "g")
     plot_stereonet_panel(axes[2][1], mp_rec_df["dec"], mp_rec_df["inc"], mp_rec_df[mp_moment_col],
                          norm_m, cmap_m, mp_fdec, mp_finc, IRM_DEC, IRM_INC, "$m^p$", "h")
@@ -4839,7 +4855,7 @@ def compare_mp_mf(cfg,
 
     print(f"m^p  moment-weighted mean: Dec={net_direction(mp_rec_df['dec'], mp_rec_df['inc'], mp_rec_df[mp_moment_col])[0]:.2f}, "
           f"Inc={net_direction(mp_rec_df['dec'], mp_rec_df['inc'], mp_rec_df[mp_moment_col])[1]:.2f}")
-    mfw = net_direction(mf_rec_df["Dec"], mf_rec_df["Inc"], mf_rec_df["Net_Moment_Amplitude"])
+    mfw = net_direction(mf_ang_df["Dec"], mf_ang_df["Inc"], mf_ang_df["Net_Moment_Amplitude"])
     print(f"m^f  moment-weighted mean: Dec={mfw[0]:.2f}, Inc={mfw[1]:.2f}")
 
     # shared vertical colorbar for row 1
