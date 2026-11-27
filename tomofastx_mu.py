@@ -2014,7 +2014,7 @@ def plot_grains_3d(cfg, thresholds=None):
 # ============================================================
 ### Tool 1: 6. 3D Calculations ###
 # ============================================================
-def grain_statistics(cfg, thresholds=None, keep_largest=False):
+def grain_statistics(cfg, thresholds=None, keep_largest=False, sensor_z0=10.0, Ms=480_000.0):
     """
     Per-grain mean direction and net moment from the grain_labels files.
     keep_largest=True also saves the largest grain of each threshold
@@ -2106,6 +2106,14 @@ def grain_statistics(cfg, thresholds=None, keep_largest=False):
                 # total grain moment = net (vector sum) of the voxel magnetizations x fixed cell volume V
                 moment_amp = np.linalg.norm(vectors.sum(axis=0)) * V if len(mags) else np.nan
 
+                # --- SSR & Mr/Ms (lit review: V/(R^3*d), |M|/Ms) ---
+                V_blob_um3 = n_vectors * (cfg.d ** 3)          # grain volume in um^3
+                d_eq = 2 * (3 * V_blob_um3 / (4 * np.pi)) ** (1 / 3)
+                z_mean_um = float(group["Z"].to_numpy().mean())
+                R_um = abs(z_mean_um - sensor_z0)
+                ssr = V_blob_um3 / (R_um ** 3 * d_eq) if R_um > 0 else np.nan
+                mrms = mean_magnitude / Ms if not np.isnan(mean_magnitude) else np.nan
+
                 # moment-weighted dipole position
                 Mi = mags
                 Xi = group["X"].to_numpy()
@@ -2132,6 +2140,8 @@ def grain_statistics(cfg, thresholds=None, keep_largest=False):
                     "Mz_mean": mean_Mz,
                     "Mean_Magnitude": mean_magnitude,
                     "Net_Moment_Amplitude": moment_amp,
+                    "SSR": ssr,
+                    "Mr_Ms": mrms,
                     "Resultant_R": R,
                     "Angular_STD_deg": sigma_deg,
                     "Dec": dec,
@@ -2281,6 +2291,50 @@ def plot_dec_inc_moment(cfg, thresholds=None):
     plot_df = pd.DataFrame(all_rows)
 
     _plot_dec_inc_moment(plot_df, BLOB_ROOT, "dec_inc_moment_vs_threshold.png", out)
+    out.end()
+
+
+# ============================================================
+### Tool 1: 6. Plot SSR vs Threshold ###
+# ============================================================
+def plot_ssr(cfg, thresholds=None):
+    """SSR vs threshold, one line per blob, star = first local minimum (fallback: global min).
+    Reads the SSR column grain_statistics() now saves in grain_dec_inc_{threshold}.csv."""
+    out = Out()
+    BLOB_ROOT = os.path.join(cfg.base_dir, "4-3D_Inversion_Filtered", "Tomofast_Output_Blobs")
+    if thresholds is None:
+        thresholds = np.r_[0.01, np.arange(0.1, 1.0, 0.1)]
+
+    fig, ax = plt.subplots(figsize=(8, 5), dpi=150)
+    for blob in list_blobs(BLOB_ROOT):
+        grains_folder = os.path.join(BLOB_ROOT, blob, blob, "Grains_detection")
+        rows = []
+        for t in thresholds:
+            p = os.path.join(grains_folder, f"grain_dec_inc_{t:.2f}.csv")
+            if not os.path.exists(p):
+                continue
+            df = pd.read_csv(p)
+            if df.empty:
+                continue
+            best = df.loc[df["Num_Voxels"].idxmax()]
+            rows.append((t, best["SSR"]))
+        if not rows:
+            continue
+        taus, ssrs = zip(*rows)
+        ax.plot(taus, ssrs, marker='o', label=blob)
+
+        ssrs = np.array(ssrs)
+        pick = next((i for i in range(1, len(ssrs) - 1)
+                     if ssrs[i] < ssrs[i - 1] and ssrs[i] <= ssrs[i + 1]), int(np.argmin(ssrs)))
+        ax.plot(taus[pick], ssrs[pick], marker='*', color='k', markersize=16, zorder=5)
+
+    ax.set_yscale('log')
+    ax.set_xlabel("threshold")
+    ax.set_ylabel("SSR (log)")
+    ax.legend(fontsize=7)
+    out_path = os.path.join(cfg.base_dir, "4-3D_Inversion_Filtered", "ssr_vs_threshold.png")
+    plt.savefig(out_path)
+    out.say("Saved:", out_path, always=True)
     out.end()
 
 
